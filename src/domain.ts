@@ -11,6 +11,8 @@ export interface MediaLedgerItem {
   age: number;
   currentWorkingSet: boolean;
   priority: number;
+  /** Where the media entered the session, e.g. `tool read({"path":"a.png"})`. */
+  origin: string;
 }
 
 export interface MediaImage {

@@ -29,6 +29,44 @@ function priorityFor(message: AgentMessage, currentWorkingSet: boolean): number 
   return 300;
 }
 
+const MAX_ORIGIN_LENGTH = 160;
+
+function formatToolCall(name: string, args: unknown): string {
+  let serialized = "";
+  try {
+    serialized = args === undefined ? "" : (JSON.stringify(args) ?? "");
+  } catch {
+    serialized = "";
+  }
+  const origin = `tool ${name}(${serialized})`;
+  return origin.length > MAX_ORIGIN_LENGTH
+    ? `${origin.slice(0, MAX_ORIGIN_LENGTH - 1)}…`
+    : origin;
+}
+
+function describeToolCalls(messages: AgentMessage[]): Map<string, string> {
+  const calls = new Map<string, string>();
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    for (const block of contentOf(message)) {
+      if (typeof block !== "object" || block === null) continue;
+      const call = block as { type?: unknown; id?: unknown; name?: unknown; arguments?: unknown };
+      if (call.type !== "toolCall" || typeof call.id !== "string" || typeof call.name !== "string") {
+        continue;
+      }
+      calls.set(call.id, formatToolCall(call.name, call.arguments));
+    }
+  }
+  return calls;
+}
+
+function originFor(message: AgentMessage, toolCalls: ReadonlyMap<string, string>): string {
+  if (message.role === "toolResult") {
+    return toolCalls.get(message.toolCallId) ?? `tool ${message.toolName}`;
+  }
+  return `${message.role} message`;
+}
+
 export function buildMediaLedger(messages: AgentMessage[]): MediaLedgerItem[] {
   let currentTurnStart = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -38,6 +76,7 @@ export function buildMediaLedger(messages: AgentMessage[]): MediaLedgerItem[] {
     }
   }
 
+  const toolCalls = describeToolCalls(messages);
   const ledger: MediaLedgerItem[] = [];
   messages.forEach((message, messageIndex) => {
     contentOf(message).forEach((block, contentIndex) => {
@@ -55,6 +94,7 @@ export function buildMediaLedger(messages: AgentMessage[]): MediaLedgerItem[] {
         age: messages.length - 1 - messageIndex,
         currentWorkingSet,
         priority: priorityFor(message, currentWorkingSet),
+        origin: originFor(message, toolCalls),
       });
     });
   });

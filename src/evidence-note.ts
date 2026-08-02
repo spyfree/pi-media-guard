@@ -12,6 +12,7 @@ export function createEvidenceNote(item: MediaLedgerItem, reason: ProjectionReas
     `[${scope} image externalized by pi-media-guard]`,
     `Media hash: ${item.hash}`,
     `Original: ${item.mimeType}, ${item.serializedBytes} Base64 bytes`,
+    `Source: ${item.origin}`,
     `Reason: ${REASON_LABELS[reason]}`,
     "Known description: unavailable",
     "Re-read the source artifact if exact pixels or small labels are needed.",

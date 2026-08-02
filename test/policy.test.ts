@@ -22,6 +22,7 @@ function item(overrides: Partial<MediaLedgerItem>): MediaLedgerItem {
     age: 10,
     currentWorkingSet: false,
     priority: 400,
+    origin: "tool read",
     ...overrides,
   };
 }
