@@ -44,10 +44,16 @@ function imageAt(messages: AgentMessage[], item: MediaLedgerItem): ImageContent 
 }
 
 function compressionTarget(items: MediaLedgerItem[], budget: MediaBudget): number {
-  if (items.length === 0) return 0;
-  const serializedShare = Math.floor(budget.maxSerializedMediaBytes / items.length);
+  // Fair share is divided among the images that can actually be kept: unique
+  // hashes capped at maxMediaBlocks. Dividing by the raw ledger length would
+  // shrink the target as history and duplicates accumulate, degrading the
+  // current image even though the planner keeps at most maxMediaBlocks images.
+  const uniqueImages = new Set(items.map((item) => item.hash)).size;
+  const keepable = Math.min(uniqueImages, budget.maxMediaBlocks);
+  if (keepable === 0) return 0;
+  const serializedShare = Math.floor(budget.maxSerializedMediaBytes / keepable);
   const decodedAsBase64Share = Math.floor(
-    ((budget.maxDecodedMediaBytes * 4) / 3) / items.length,
+    ((budget.maxDecodedMediaBytes * 4) / 3) / keepable,
   );
   return Math.max(
     0,
@@ -71,6 +77,10 @@ async function constrainImages(
   if (maxSerializedBytes <= 0) return { messages, compressed: 0 };
 
   const replacements = new Map<string, ImageContent>();
+  // Every oversized instance is compressed, duplicates included: skipping
+  // duplicate locations would leave them with a different hash than the
+  // compressed primary, and the planner's dedup would stop collapsing them.
+  // The caching codec turns the repeated work into a lookup.
   const candidates = ledger.filter((item) => item.serializedBytes > maxSerializedBytes);
   let nextCandidate = 0;
   async function worker(): Promise<void> {
