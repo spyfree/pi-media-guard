@@ -16,13 +16,13 @@ npm run build
 pi install /absolute/path/to/pi-media-guard
 ```
 
-From GitHub after publication:
+From GitHub:
 
 ```bash
 pi install git:github.com/spyfree/pi-media-guard@v0.1.0-alpha.1
 ```
 
-From npm after publication:
+From npm (recommended):
 
 ```bash
 pi install npm:pi-media-guard@0.1.0-alpha.1
