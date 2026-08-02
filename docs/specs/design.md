@@ -914,7 +914,7 @@ Pi package gallery 会发现带 `pi-package` keyword 的 npm 包，可在 `pi.de
 7. 支持 OpenAI Codex、OpenAI Responses、Anthropic Messages；
 8. PDF workflow 不会建议一次内联全部页面；
 9. 用户能通过一个 `/media` 命令理解当前状态和插件采取的动作；
-10. npm tarball 可通过 `pi -e <tarball>` 和 `pi install npm:pi-media-guard` 加载；
+10. npm tarball 包含可加载的 `dist/extension.js`；解包后可通过 `pi -ne -e <package-dir>` 验证，并可通过 `pi install npm:pi-media-guard` 安装；
 11. README、license、security、privacy 和 provider compatibility 齐全；
 12. 无 Base64/图片内容泄漏到日志。
 
