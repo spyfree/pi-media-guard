@@ -1,0 +1,65 @@
+{
+  "name": "pi-media-guard",
+  "version": "0.1.0-alpha.1",
+  "description": "Deterministic aggregate media budgets and safe request projections for Pi",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs/configuration.md",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "test": "tsx --test test/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "llm",
+    "image",
+    "media",
+    "multimodal"
+  ],
+  "author": "Li Xin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spyfree/pi-media-guard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/spyfree/pi-media-guard/issues"
+  },
+  "homepage": "https://github.com/spyfree/pi-media-guard#readme",
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "0.83.0",
+    "@earendil-works/pi-ai": "0.83.0",
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@types/node": "^22.0.0",
+    "fast-check": "^4.3.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "pi": {
+    "extensions": [
+      "./dist/extension.js"
+    ]
+  }
+}
