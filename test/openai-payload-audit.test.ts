@@ -66,3 +66,45 @@ test("OpenAI Responses emergency projection replaces only image leaves", () => {
     /externalized by pi-media-guard final payload guard/,
   );
 });
+
+test("a data URL pasted into plain text is neither counted as media nor rewritten", () => {
+  const payload = {
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "look at data:image/png;base64,QUJDRA== inside this text",
+          },
+        ],
+      },
+    ],
+  };
+  const original = structuredClone(payload);
+
+  const footprint = inspectOpenAIResponsesPayload(payload);
+  const projected = emergencyProjectOpenAIResponsesPayload(payload);
+
+  assert.equal(footprint.mediaBlocks, 0);
+  assert.equal(footprint.serializedMediaBytes, 0);
+  assert.deepEqual(projected, original);
+});
+
+test("emergency projection survives cyclic and shared references without recursing forever", () => {
+  const shared = { type: "input_image", image_url: "data:image/png;base64,QUJDRA==" };
+  const cyclic: Record<string, unknown> = {
+    input: [shared, shared],
+  };
+  cyclic.self = cyclic;
+
+  const projected = emergencyProjectOpenAIResponsesPayload(cyclic) as {
+    input: Array<{ type?: string; text?: string }>;
+    self: unknown;
+  };
+
+  assert.equal(projected.input[0]?.type, "input_text");
+  assert.equal(projected.input[1]?.type, "input_text");
+  assert.equal(projected.self, projected);
+  assert.equal(inspectOpenAIResponsesPayload(cyclic).mediaBlocks, 1);
+});
