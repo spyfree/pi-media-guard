@@ -173,11 +173,13 @@ export function resolveLayeredMediaBudget(
     : undefined;
   return {
     budget: {
+      // Within each scope the provider profile is more specific than the
+      // top-level budget, so it wins; project scope still overrides global.
       ...base.budget,
-      ...globalProfile,
       ...options.globalConfig?.budget,
-      ...projectProfile,
+      ...globalProfile,
       ...options.projectConfig?.budget,
+      ...projectProfile,
       ...options.override,
     },
     profile:

@@ -48,13 +48,15 @@ From lowest to highest:
 
 1. conservative built-in default;
 2. built-in provider profile;
-3. global user profile;
-4. project profile;
-5. global top-level budget;
-6. project top-level budget;
+3. global top-level budget;
+4. global provider profile;
+5. project top-level budget;
+6. project provider profile;
 7. an explicit runtime/request override supplied by the extension adapter.
 
-Top-level `budget` is an authoritative default for the current scope and therefore overrides the selected provider profile. Project fields merge with, rather than replace, unrelated global fields.
+Within one file, a provider profile is more specific than the top-level `budget` and therefore overrides it for the fields the profile declares. The top-level `budget` acts as that scope's default for providers without a matching profile. Across scopes, project declarations override global declarations, and fields merge rather than replace: a project profile that sets only `maxSerializedMediaBytes` inherits every other field from the layers below.
+
+> Changed in 0.1.0-alpha.2: earlier alphas resolved the top-level `budget` *above* provider profiles in the same file, which silently disabled profile fields that the budget also declared. A config that pairs a conservative default `budget` with a wider provider profile now behaves as written.
 
 ## Failure behavior
 

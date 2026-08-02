@@ -73,6 +73,8 @@ Example:
 }
 ```
 
+The top-level `budget` is the default for providers without a matching profile. A provider profile is more specific and overrides the top-level `budget` for the fields it declares: with the config above, `amazon-bedrock` requests get the wider 12 MiB serialized budget while every other provider keeps 2 MiB.
+
 Modes:
 
 - `observe`: inventory and report only;

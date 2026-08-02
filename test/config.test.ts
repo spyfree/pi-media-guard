@@ -71,6 +71,44 @@ test("project provider declarations override a global top-level budget", () => {
   assert.equal(resolved.budget.maxSerializedMediaBytes, 12_000_000);
 });
 
+test("a provider profile overrides the top-level budget declared in the same file", () => {
+  // The README example: a conservative default budget plus a wider
+  // amazon-bedrock profile in one global config file. The profile is more
+  // specific and must win for the fields it declares.
+  const globalConfig = parseMediaGuardConfig({
+    version: 1,
+    budget: {
+      maxMediaBlocks: 8,
+      maxSerializedMediaBytes: 2_097_152,
+      maxDecodedMediaBytes: 1_572_864,
+      maxSerializedBytesPerImage: 524_288,
+    },
+    profiles: {
+      "amazon-bedrock": {
+        maxSerializedMediaBytes: 12_582_912,
+        maxDecodedMediaBytes: 9_437_184,
+      },
+    },
+  });
+  assert.equal(globalConfig.ok, true);
+  if (!globalConfig.ok) assert.fail("expected a valid config");
+
+  const bedrock = resolveLayeredMediaBudget({
+    provider: "amazon-bedrock",
+    globalConfig: globalConfig.config,
+  });
+  assert.equal(bedrock.budget.maxSerializedMediaBytes, 12_582_912);
+  assert.equal(bedrock.budget.maxDecodedMediaBytes, 9_437_184);
+  assert.equal(bedrock.budget.maxMediaBlocks, 8);
+  assert.equal(bedrock.budget.maxSerializedBytesPerImage, 524_288);
+
+  const other = resolveLayeredMediaBudget({
+    provider: "openai",
+    globalConfig: globalConfig.config,
+  });
+  assert.equal(other.budget.maxSerializedMediaBytes, 2_097_152);
+});
+
 test("file loading reads trusted project overrides and ignores an invalid layer safely", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-media-guard-"));
   const agentDir = join(root, "agent");
