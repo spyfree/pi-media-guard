@@ -7,7 +7,7 @@ Phase 0 supports declarative media budgets at two locations:
 <project>/.pi/pi-media-guard.json
 ```
 
-The project file is read only when Pi reports the project as trusted.
+The project file is read only when Pi reports the project as trusted. Both files are read once at session start; run `/media reload` to re-read them mid-session.
 
 ## Schema
 

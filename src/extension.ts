@@ -109,11 +109,23 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("media", {
-    description: "Show pi-media-guard status",
+    description: "Show pi-media-guard status or reload its configuration",
     handler: async (args, ctx) => {
       const action = args.trim() || "status";
+      if (action === "reload") {
+        const loaded = await loadConfig(ctx);
+        const layers = [
+          loaded.globalConfig ? "global" : undefined,
+          loaded.projectConfig ? "project" : undefined,
+        ].filter((layer): layer is string => layer !== undefined);
+        ctx.ui.notify(
+          `pi-media-guard: configuration reloaded (${layers.length > 0 ? layers.join(" + ") : "built-in defaults"})`,
+          "info",
+        );
+        return;
+      }
       if (action !== "status") {
-        ctx.ui.notify("Usage: /media [status]", "warning");
+        ctx.ui.notify("Usage: /media [status|reload]", "warning");
         return;
       }
       ctx.ui.notify(

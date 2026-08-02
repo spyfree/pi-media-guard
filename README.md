@@ -52,6 +52,8 @@ Trusted project override:
 .pi/pi-media-guard.json
 ```
 
+Both files are read at session start. After editing one, run `/media reload` to apply it to the current session.
+
 Example:
 
 ```json

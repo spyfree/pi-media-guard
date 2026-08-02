@@ -1,0 +1,215 @@
+import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import {
+  getAgentDir,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import piMediaGuardExtension from "../src/extension.js";
+
+// Isolate the global config layer from the developer's real ~/.pi/agent.
+// getAgentDir honors this env var; the assertion fails loudly if pi renames it.
+const isolatedAgentDir = await mkdtemp(join(tmpdir(), "pi-media-guard-agent-"));
+process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
+assert.equal(
+  getAgentDir(),
+  isolatedAgentDir,
+  "PI_CODING_AGENT_DIR no longer isolates the global config layer",
+);
+
+type AnyHandler = (event: unknown, ctx: unknown) => unknown;
+
+interface RegisteredCommand {
+  description: string;
+  handler: (args: string, ctx: unknown) => Promise<void> | void;
+}
+
+class FakeExtensionHost {
+  private readonly handlers = new Map<string, AnyHandler[]>();
+  readonly commands = new Map<string, RegisteredCommand>();
+
+  readonly api = {
+    on: (event: string, handler: AnyHandler): void => {
+      this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
+    },
+    registerCommand: (name: string, command: RegisteredCommand): void => {
+      this.commands.set(name, command);
+    },
+  } as unknown as ExtensionAPI;
+
+  async emit(event: string, payload: unknown, ctx: unknown): Promise<unknown> {
+    let result: unknown;
+    for (const handler of this.handlers.get(event) ?? []) {
+      result = await handler(payload, ctx);
+    }
+    return result;
+  }
+}
+
+interface RecordedUi {
+  notifications: Array<{ message: string; level: string | undefined }>;
+  statuses: Array<{ key: string; value: string | undefined }>;
+}
+
+async function createHarness(provider?: string): Promise<{
+  host: FakeExtensionHost;
+  ctx: ExtensionContext;
+  ui: RecordedUi;
+}> {
+  const host = new FakeExtensionHost();
+  piMediaGuardExtension(host.api);
+  const ui: RecordedUi = { notifications: [], statuses: [] };
+  const cwd = await mkdtemp(join(tmpdir(), "pi-media-guard-project-"));
+  const ctx = {
+    cwd,
+    isProjectTrusted: () => false,
+    model: provider ? { provider } : undefined,
+    ui: {
+      notify: (message: string, level?: string) => {
+        ui.notifications.push({ message, level });
+      },
+      setStatus: (key: string, value: string | undefined) => {
+        ui.statuses.push({ key, value });
+      },
+    },
+  } as unknown as ExtensionContext;
+  return { host, ctx, ui };
+}
+
+function nineImageMessages(): AgentMessage[] {
+  return [
+    {
+      role: "user",
+      content: Array.from({ length: 9 }, (_, index) => ({
+        type: "image" as const,
+        data: Buffer.from(`distinct-image-${index}`).toString("base64"),
+        mimeType: "image/png",
+      })),
+      timestamp: 1,
+    },
+  ];
+}
+
+function evidenceNotes(messages: AgentMessage[]): string[] {
+  return messages.flatMap((message) =>
+    "content" in message && Array.isArray(message.content)
+      ? message.content.flatMap((block) =>
+          typeof block === "object" &&
+          block !== null &&
+          block.type === "text" &&
+          block.text.includes("externalized by pi-media-guard")
+            ? [block.text]
+            : [],
+        )
+      : [],
+  );
+}
+
+test("context hook projects overflow media, sets footer status, and warns once", async () => {
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+
+  const messages = nineImageMessages();
+  const result = (await host.emit("context", { type: "context", messages }, ctx)) as {
+    messages: AgentMessage[];
+  };
+
+  assert.equal(evidenceNotes(result.messages).length, 1);
+  const status = ui.statuses.at(-1);
+  assert.equal(status?.key, "pi-media-guard");
+  assert.match(String(status?.value), /^media .* · red$/);
+  const warnings = ui.notifications.filter((entry) => entry.level === "warning");
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]?.message ?? "", /replaced 1 current image/);
+
+  await host.emit("context", { type: "context", messages }, ctx);
+  assert.equal(ui.notifications.filter((entry) => entry.level === "warning").length, 1);
+});
+
+test("codex final payload above the declared budget triggers emergency surgery", async () => {
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+  await host.emit(
+    "context",
+    { type: "context", messages: [{ role: "user", content: "hello", timestamp: 1 }] },
+    ctx,
+  );
+
+  const payload = {
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_image",
+            image_url: `data:image/png;base64,${"A".repeat(3 * 1024 * 1024)}`,
+          },
+        ],
+      },
+    ],
+  };
+  const projected = (await host.emit(
+    "before_provider_request",
+    { type: "before_provider_request", payload },
+    ctx,
+  )) as { input: Array<{ content: Array<{ type?: string }> }> };
+
+  assert.equal(projected.input[0]?.content[0]?.type, "input_text");
+  assert.ok(
+    ui.notifications.some(
+      (entry) => entry.level === "error" && entry.message.includes("final Codex payload"),
+    ),
+  );
+});
+
+test("non-codex providers are not audited in the final payload hook", async () => {
+  const { host, ctx } = await createHarness("anthropic");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+
+  const result = await host.emit(
+    "before_provider_request",
+    { type: "before_provider_request", payload: { input: [] } },
+    ctx,
+  );
+
+  assert.equal(result, undefined);
+});
+
+test("/media supports status and reload and rejects unknown actions", async () => {
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  const media = host.commands.get("media");
+  assert.ok(media, "expected the media command to be registered");
+
+  await media.handler("", ctx);
+  assert.match(
+    ui.notifications.at(-1)?.message ?? "",
+    /waiting for the first model request/,
+  );
+
+  await media.handler("reload", ctx);
+  assert.match(
+    ui.notifications.at(-1)?.message ?? "",
+    /configuration reloaded \(built-in defaults\)/,
+  );
+
+  await media.handler("bogus", ctx);
+  assert.equal(ui.notifications.at(-1)?.message, "Usage: /media [status|reload]");
+  assert.equal(ui.notifications.at(-1)?.level, "warning");
+
+  await host.emit("session_start", { type: "session_start" }, ctx);
+  await host.emit("context", { type: "context", messages: nineImageMessages() }, ctx);
+  await media.handler("status", ctx);
+  assert.match(ui.notifications.at(-1)?.message ?? "", /^Media Guard: red \(protect\)/);
+});
+
+test("session_shutdown clears the footer status", async () => {
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+  await host.emit("session_shutdown", { type: "session_shutdown" }, ctx);
+
+  assert.deepEqual(ui.statuses.at(-1), { key: "pi-media-guard", value: undefined });
+});
