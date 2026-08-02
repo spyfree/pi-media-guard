@@ -8,6 +8,12 @@ Deterministic aggregate media budgets and safe request projections for [Pi](http
 
 ## Install
 
+From npm (recommended):
+
+```bash
+pi install npm:pi-media-guard
+```
+
 From a local checkout:
 
 ```bash
@@ -16,17 +22,7 @@ npm run build
 pi install /absolute/path/to/pi-media-guard
 ```
 
-From GitHub:
-
-```bash
-pi install git:github.com/spyfree/pi-media-guard@v0.1.0-alpha.1
-```
-
-From npm (recommended):
-
-```bash
-pi install npm:pi-media-guard@0.1.0-alpha.1
-```
+> **Do not use `pi install git:...` for this package.** Pi installs git packages by cloning the repository and running `npm install --omit=dev`, which never runs the TypeScript build. Because `dist/` is not committed to git, the extension entry point `dist/extension.js` would be missing and the extension would fail to load. The npm tarball ships prebuilt `dist/`, and the local-checkout flow builds it explicitly.
 
 Restart Pi after installation. Use `/media` or `/media status` after the first model request.
 
