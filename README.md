@@ -110,7 +110,7 @@ npm run build
 
 ## Releasing
 
-Pushing a `v*` tag that matches `package.json`'s version runs the release workflow: lint, typecheck, tests, then `npm publish` with [provenance](https://docs.npmjs.com/generating-provenance-statements). The repository needs an `NPM_TOKEN` secret with publish rights (or npm Trusted Publishing configured for this workflow).
+Releases are version-driven: bump `version` in `package.json` and merge to `main`. The release workflow tags that version (if `v<version>` does not exist yet), runs lint/typecheck/tests, and publishes to npm with [provenance](https://docs.npmjs.com/generating-provenance-statements). Pushing a matching `v*` tag directly or running the workflow manually are equivalent entry points. The repository needs an `NPM_TOKEN` secret with publish rights (or npm Trusted Publishing configured for this workflow).
 
 ## Security and privacy
 
