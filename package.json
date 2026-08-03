@@ -21,14 +21,14 @@
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "test": "tsx --test",
+    "test": "tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
     "prepack": "npm run build"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19.0"
   },
   "keywords": [
     "pi-package",

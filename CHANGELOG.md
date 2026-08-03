@@ -29,10 +29,11 @@
 - Extend the property suite through the compression path with a deterministic
   codec, and cover cache eviction (entry and byte bounds), compression
   timeouts, config-reload effectiveness, and the emergency fallback.
-- Add Biome linting/formatting (`npm run lint`), a Node 20/22/24 CI matrix, a
+- Add Biome linting/formatting (`npm run lint`), a Node 22/24 CI matrix, a
   packed-tarball smoke test that imports both entry points, a tag-driven
   release workflow publishing to npm with provenance, and an `engines` field
-  (Node >= 20).
+  (Node >= 22.19.0, matching Pi's own requirement — verified by the smoke
+  test failing on Node 20).
 - Deduplicate `formatMiB` and Base64 byte accounting into a shared module.
 
 ## 0.1.0-alpha.2
