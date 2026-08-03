@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.1.0-beta.1
+
+- **Breaking (config):** `enabled: false` now bypasses the guard entirely — no
+  media ledger, no hashing, no projection, and the footer shows
+  `media guard off`. It previously behaved like `mode: "observe"`, which still
+  paid the full inventory cost on every request. Use `mode: "observe"` for
+  non-transforming reporting.
+- **Breaking (API):** `GuardResult` gains a required `decisions` field with
+  the per-image budget decisions; `MediaLedgerItem.kind` narrows to `"image"`
+  (the unimplemented `"document"` variant is removed); `resolveGuardMode` no
+  longer consults `enabled` (use the new `resolveGuardEnabled`).
+- Add `/media ledger`: a per-image breakdown of the last projection — hash,
+  size, origin, current/history scope, and keep/externalize decision with its
+  reason — answering "why did my image disappear" without guesswork.
+- Cache image hashing across requests and ledger rebuilds. The ledger is built
+  up to three times per request and session images are re-sent on every model
+  call; a bounded content-keyed memo removes the repeated SHA-256 work.
+- Bound each image's compression attempt with a timeout (default 10 s,
+  `compressionTimeoutMs` in `createMediaGuard`). A hung or slow codec can no
+  longer stall the request; the image falls through to externalization.
+- Harden the emergency path: when the primary projection throws, the extension
+  now falls back to a structural image-strip that does no hashing or budget
+  math, so the failure cannot recur inside the fallback itself.
+- Route final-payload audits through a provider adapter registry
+  (`PROVIDER_PAYLOAD_ADAPTERS`); adding a provider no longer touches the
+  extension wiring.
+- Extend the property suite through the compression path with a deterministic
+  codec, and cover cache eviction (entry and byte bounds), compression
+  timeouts, config-reload effectiveness, and the emergency fallback.
+- Add Biome linting/formatting (`npm run lint`), a Node 20/22/24 CI matrix, a
+  packed-tarball smoke test that imports both entry points, a tag-driven
+  release workflow publishing to npm with provenance, and an `engines` field
+  (Node >= 20).
+- Deduplicate `formatMiB` and Base64 byte accounting into a shared module.
+
 ## 0.1.0-alpha.2
 
 - **Breaking (config):** provider profiles now override the top-level `budget`

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import {
-  getAgentDir,
   type ExtensionAPI,
   type ExtensionContext,
+  getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import piMediaGuardExtension from "../src/extension.js";
 
@@ -161,7 +161,7 @@ test("codex final payload above the declared budget triggers emergency surgery",
   assert.equal(projected.input[0]?.content[0]?.type, "input_text");
   assert.ok(
     ui.notifications.some(
-      (entry) => entry.level === "error" && entry.message.includes("final Codex payload"),
+      (entry) => entry.level === "error" && entry.message.includes("final openai-codex payload"),
     ),
   );
 });
@@ -185,10 +185,7 @@ test("/media supports status and reload and rejects unknown actions", async () =
   assert.ok(media, "expected the media command to be registered");
 
   await media.handler("", ctx);
-  assert.match(
-    ui.notifications.at(-1)?.message ?? "",
-    /waiting for the first model request/,
-  );
+  assert.match(ui.notifications.at(-1)?.message ?? "", /waiting for the first model request/);
 
   await media.handler("reload", ctx);
   assert.match(
@@ -197,7 +194,7 @@ test("/media supports status and reload and rejects unknown actions", async () =
   );
 
   await media.handler("bogus", ctx);
-  assert.equal(ui.notifications.at(-1)?.message, "Usage: /media [status|reload]");
+  assert.equal(ui.notifications.at(-1)?.message, "Usage: /media [status|ledger|reload]");
   assert.equal(ui.notifications.at(-1)?.level, "warning");
 
   await host.emit("session_start", { type: "session_start" }, ctx);
@@ -212,4 +209,101 @@ test("session_shutdown clears the footer status", async () => {
   await host.emit("session_shutdown", { type: "session_shutdown" }, ctx);
 
   assert.deepEqual(ui.statuses.at(-1), { key: "pi-media-guard", value: undefined });
+});
+
+test("a failing projection falls back to stripping images instead of throwing", async () => {
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+
+  const poisoned = { role: "user", timestamp: 1 };
+  Object.defineProperty(poisoned, "content", {
+    enumerable: true,
+    get() {
+      throw new Error("poisoned message");
+    },
+  });
+  const image = {
+    role: "user",
+    content: [
+      { type: "image", data: Buffer.from("pixels").toString("base64"), mimeType: "image/png" },
+      { type: "text", text: "kept" },
+    ],
+    timestamp: 2,
+  };
+
+  const result = (await host.emit(
+    "context",
+    { type: "context", messages: [poisoned, image] as AgentMessage[] },
+    ctx,
+  )) as { messages: AgentMessage[] };
+
+  assert.ok(
+    ui.notifications.some(
+      (entry) => entry.level === "error" && entry.message.includes("projection failed"),
+    ),
+  );
+  const projected = result.messages[1];
+  assert.ok(projected && "content" in projected && Array.isArray(projected.content));
+  if (!projected || !("content" in projected) || !Array.isArray(projected.content)) return;
+  assert.deepEqual(projected.content[1], { type: "text", text: "kept" });
+  const stripped = projected.content[0];
+  assert.equal(typeof stripped === "object" && stripped !== null ? stripped.type : "", "text");
+  assert.match(stripped?.type === "text" ? stripped.text : "", /emergency projection/);
+});
+
+test("/media reload applies a changed configuration to the next request", async (t) => {
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const agentDir = await mkdtemp(join(tmpdir(), "pi-media-guard-reload-"));
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  t.after(() => {
+    process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  });
+
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+  await host.emit("context", { type: "context", messages: nineImageMessages() }, ctx);
+  assert.equal(evidenceNotes((await lastProjection(host, ctx)).messages).length, 1);
+
+  await writeFile(
+    join(agentDir, "pi-media-guard.json"),
+    JSON.stringify({ version: 1, enabled: false }),
+  );
+  const media = host.commands.get("media");
+  assert.ok(media);
+  await media.handler("reload", ctx);
+  assert.match(ui.notifications.at(-1)?.message ?? "", /configuration reloaded \(global\)/);
+
+  const disabled = await lastProjection(host, ctx);
+  assert.equal(evidenceNotes(disabled.messages).length, 0);
+  assert.equal(ui.statuses.at(-1)?.value, "media guard off");
+
+  await media.handler("status", ctx);
+  assert.match(ui.notifications.at(-1)?.message ?? "", /disabled/);
+});
+
+async function lastProjection(
+  host: FakeExtensionHost,
+  ctx: ExtensionContext,
+): Promise<{ messages: AgentMessage[] }> {
+  return (await host.emit("context", { type: "context", messages: nineImageMessages() }, ctx)) as {
+    messages: AgentMessage[];
+  };
+}
+
+test("/media ledger explains per-image decisions after a projection", async () => {
+  const { host, ctx, ui } = await createHarness("openai-codex");
+  await host.emit("session_start", { type: "session_start" }, ctx);
+  const media = host.commands.get("media");
+  assert.ok(media);
+
+  await media.handler("ledger", ctx);
+  assert.match(ui.notifications.at(-1)?.message ?? "", /waiting for the first model request/);
+
+  await host.emit("context", { type: "context", messages: nineImageMessages() }, ctx);
+  await media.handler("ledger", ctx);
+  const ledger = ui.notifications.at(-1)?.message ?? "";
+  assert.match(ledger, /^Media Guard ledger \(9 images\):/);
+  assert.match(ledger, /keep/);
+  assert.match(ledger, /externalize \(aggregate budget\)/);
+  assert.match(ledger, /user message/);
 });

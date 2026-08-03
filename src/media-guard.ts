@@ -52,17 +52,35 @@ function compressionTarget(items: MediaLedgerItem[], budget: MediaBudget): numbe
   const keepable = Math.min(uniqueImages, budget.maxMediaBlocks);
   if (keepable === 0) return 0;
   const serializedShare = Math.floor(budget.maxSerializedMediaBytes / keepable);
-  const decodedAsBase64Share = Math.floor(
-    ((budget.maxDecodedMediaBytes * 4) / 3) / keepable,
-  );
+  const decodedAsBase64Share = Math.floor((budget.maxDecodedMediaBytes * 4) / 3 / keepable);
   return Math.max(
     0,
-    Math.min(
-      budget.maxSerializedBytesPerImage,
-      serializedShare,
-      decodedAsBase64Share,
-    ),
+    Math.min(budget.maxSerializedBytesPerImage, serializedShare, decodedAsBase64Share),
   );
+}
+
+async function constrainWithTimeout(
+  codec: ImageCodec,
+  image: Parameters<ImageCodec["constrain"]>[0],
+  target: Parameters<ImageCodec["constrain"]>[1],
+  timeoutMs: number,
+): Promise<EncodedImage | null> {
+  const operation = codec.constrain(image, target);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return operation;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    // Promise.race attaches handlers to the operation, so a late rejection
+    // after the timeout wins is not an unhandled rejection. A timed-out image
+    // is treated like a failed compression and falls through to the planner.
+    return await Promise.race([
+      operation,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function constrainImages(
@@ -70,6 +88,7 @@ async function constrainImages(
   ledger: MediaLedgerItem[],
   budget: MediaBudget,
   codec: ImageCodec | undefined,
+  timeoutMs: number,
 ): Promise<{ messages: AgentMessage[]; compressed: number }> {
   if (!codec) return { messages, compressed: 0 };
   const activeCodec = codec;
@@ -91,9 +110,11 @@ async function constrainImages(
       if (!image) continue;
       let encoded: EncodedImage | null;
       try {
-        encoded = await activeCodec.constrain(
+        encoded = await constrainWithTimeout(
+          activeCodec,
           { data: image.data, mimeType: image.mimeType, hash: item.hash },
           { maxWidth: 2000, maxHeight: 2000, maxSerializedBytes },
+          timeoutMs,
         );
       } catch {
         encoded = null;
@@ -112,9 +133,7 @@ async function constrainImages(
       });
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(2, candidates.length) }, async () => worker()),
-  );
+  await Promise.all(Array.from({ length: Math.min(2, candidates.length) }, async () => worker()));
   return {
     messages: transformContentLeaves(messages, replacements),
     compressed: replacements.size,
@@ -137,16 +156,21 @@ function replaceRejectedImages(
 }
 
 class DefaultMediaGuard implements MediaGuard {
-  constructor(private readonly codec?: ImageCodec) {}
+  constructor(
+    private readonly codec?: ImageCodec,
+    private readonly compressionTimeoutMs: number = DEFAULT_COMPRESSION_TIMEOUT_MS,
+  ) {}
 
   async project(messages: AgentMessage[], environment: GuardEnvironment): Promise<GuardResult> {
     const originalLedger = buildMediaLedger(messages);
     const resolvedBudget = resolveMediaBudget(environment);
     const mode = environment.mode ?? "protect";
-    const originalPressure = planMediaBudget(originalLedger, resolvedBudget.budget).pressure;
+    const originalPlan = planMediaBudget(originalLedger, resolvedBudget.budget);
+    const originalPressure = originalPlan.pressure;
     if (mode === "observe") {
       return {
         messages,
+        decisions: originalPlan.decisions,
         report: {
           mode,
           pressure: originalPressure,
@@ -167,11 +191,13 @@ class DefaultMediaGuard implements MediaGuard {
       originalLedger,
       resolvedBudget.budget,
       this.codec,
+      this.compressionTimeoutMs,
     );
     const constrainedLedger = buildMediaLedger(constrained.messages);
     if (mode === "optimize") {
       return {
         messages: constrained.messages,
+        decisions: planMediaBudget(constrainedLedger, resolvedBudget.budget).decisions,
         report: {
           mode,
           pressure: originalPressure,
@@ -194,6 +220,7 @@ class DefaultMediaGuard implements MediaGuard {
 
     return {
       messages: projectedMessages,
+      decisions: plan.decisions,
       report: {
         mode,
         pressure: originalPressure,
@@ -204,19 +231,26 @@ class DefaultMediaGuard implements MediaGuard {
         kept: plan.decisions.length - externalized.length,
         compressed: constrained.compressed,
         externalized: externalized.length,
-        externalizedCurrent: externalized.filter(
-          (decision) => decision.item.currentWorkingSet,
-        ).length,
+        externalizedCurrent: externalized.filter((decision) => decision.item.currentWorkingSet)
+          .length,
         deduplicated: externalized.filter((decision) => decision.reason === "duplicate").length,
       },
     };
   }
 }
 
+export const DEFAULT_COMPRESSION_TIMEOUT_MS = 10_000;
+
 export interface CreateMediaGuardOptions {
   codec?: ImageCodec;
+  /**
+   * Upper bound on each image's compression attempt. A timed-out image is
+   * treated like a failed compression: it stays oversized and the planner
+   * externalizes it. Non-positive values disable the timeout.
+   */
+  compressionTimeoutMs?: number;
 }
 
 export function createMediaGuard(options: CreateMediaGuardOptions = {}): MediaGuard {
-  return new DefaultMediaGuard(options.codec);
+  return new DefaultMediaGuard(options.codec, options.compressionTimeoutMs);
 }

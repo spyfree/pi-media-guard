@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  EncodedImage,
-  ImageCodec,
-  ImageTarget,
-  MediaImage,
-} from "../src/domain.js";
+import type { EncodedImage, ImageCodec, ImageTarget, MediaImage } from "../src/domain.js";
 import { createMediaGuard } from "../src/media-guard.js";
 import { DEFAULT_MEDIA_BUDGET } from "../src/policy.js";
 import {
@@ -48,7 +43,9 @@ test("anonymous 6.57 MB multi-image failure is projected below the aggregate req
 
   const notes = result.messages.flatMap((message) =>
     "content" in message && Array.isArray(message.content)
-      ? message.content.filter((block) => block.type === "text" && block.text.includes("externalized by pi-media-guard"))
+      ? message.content.filter(
+          (block) => block.type === "text" && block.text.includes("externalized by pi-media-guard"),
+        )
       : [],
   );
   assert.equal(notes.length, 0);

@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type {
-  EncodedImage,
-  ImageCodec,
-  ImageTarget,
-  MediaImage,
-} from "../src/domain.js";
+import type { EncodedImage, ImageCodec, ImageTarget, MediaImage } from "../src/domain.js";
 import { createMediaGuard } from "../src/media-guard.js";
 import { DEFAULT_MEDIA_BUDGET } from "../src/policy.js";
 
@@ -54,9 +49,7 @@ test("duplicate copies of one image do not shrink the fair-share target", async 
   });
 
   assert.ok(
-    codec.targets.every(
-      (target) => target === DEFAULT_MEDIA_BUDGET.maxSerializedBytesPerImage,
-    ),
+    codec.targets.every((target) => target === DEFAULT_MEDIA_BUDGET.maxSerializedBytesPerImage),
   );
   assert.equal(result.report.kept, 1);
   assert.equal(result.report.deduplicated, 9);

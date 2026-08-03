@@ -19,7 +19,7 @@ export function fourImageFailureMessages(): AgentMessage[] {
       content: [
         {
           type: "image",
-          data: anonymousBase64(length, markers[index]!),
+          data: anonymousBase64(length, markers[index] ?? "AAAA"),
           mimeType: "image/png",
         },
       ],

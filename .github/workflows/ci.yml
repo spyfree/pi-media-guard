@@ -11,14 +11,36 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm pack --dry-run
+      # Install the real tarball into a scratch project and load both entry
+      # points: catches packaging regressions `npm pack --dry-run` cannot,
+      # such as a missing dist/ or a broken exports map.
+      - name: Pack smoke test
+        run: |
+          set -eu
+          tarball="$PWD/$(npm pack --silent | tail -n 1)"
+          smoke_dir="$(mktemp -d)"
+          cd "$smoke_dir"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$tarball"
+          test -f node_modules/pi-media-guard/dist/extension.js
+          node --input-type=module -e "
+            const guard = await import('pi-media-guard');
+            if (typeof guard.createMediaGuard !== 'function') throw new Error('createMediaGuard missing from the packed entry point');
+            const extension = await import('./node_modules/pi-media-guard/dist/extension.js');
+            if (typeof extension.default !== 'function') throw new Error('extension entry point is not a function');
+          "

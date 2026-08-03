@@ -72,12 +72,19 @@ test("request projection replaces only rejected image leaves and does not mutate
   assert.equal(result.messages[2]?.role, "toolResult");
   if (result.messages[2]?.role !== "toolResult") assert.fail("expected tool result");
   assert.deepEqual(result.messages[2].content[0], { type: "text", text: "shot.png" });
-  assert.match(result.messages[2].content[1]?.type === "text" ? result.messages[2].content[1].text : "", /^\[Current image externalized by pi-media-guard\]/);
-  assert.match(result.messages[2].content[1]?.type === "text" ? result.messages[2].content[1].text : "", /Reason: aggregate budget/);
+  assert.match(
+    result.messages[2].content[1]?.type === "text" ? result.messages[2].content[1].text : "",
+    /^\[Current image externalized by pi-media-guard\]/,
+  );
+  assert.match(
+    result.messages[2].content[1]?.type === "text" ? result.messages[2].content[1].text : "",
+    /Reason: aggregate budget/,
+  );
   assert.ok(
-    (result.messages[2].content[1]?.type === "text" ? result.messages[2].content[1].text : "").includes(
-      'Source: tool read({"path":"shot.png"})',
-    ),
+    (result.messages[2].content[1]?.type === "text"
+      ? result.messages[2].content[1].text
+      : ""
+    ).includes('Source: tool read({"path":"shot.png"})'),
   );
   assert.deepEqual(result.report.after, { blocks: 0, serializedBytes: 0, decodedBytes: 0 });
   assert.equal(result.report.externalized, 1);

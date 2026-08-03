@@ -2,12 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import fc from "fast-check";
+import type { ImageCodec } from "../src/domain.js";
 import { buildMediaLedger, mediaFootprint } from "../src/ledger.js";
 import { createMediaGuard } from "../src/media-guard.js";
 
-const imageData = fc.uint8Array({ minLength: 0, maxLength: 256 }).map((bytes) =>
-  Buffer.from(bytes).toString("base64"),
-);
+const imageData = fc
+  .uint8Array({ minLength: 0, maxLength: 256 })
+  .map((bytes) => Buffer.from(bytes).toString("base64"));
+
+/** Shrinks any image to the requested byte target, deterministically per image. */
+const truncatingCodec: ImageCodec = {
+  async constrain(image, target) {
+    const size = Math.min(
+      Buffer.byteLength(image.data, "utf8"),
+      Math.max(0, target.maxSerializedBytes),
+    );
+    const seed = image.hash.replace(/[^A-Za-z0-9]/g, "").slice(0, 8);
+    return {
+      data: (seed + "A".repeat(size)).slice(0, size),
+      mimeType: "image/jpeg",
+      width: 1,
+      height: 1,
+    };
+  },
+};
 
 test("protect projection preserves protocol structure and always satisfies arbitrary budgets", async () => {
   await fc.assert(
@@ -74,6 +92,64 @@ test("protect projection preserves protocol structure and always satisfies arbit
         }
         const second = await createMediaGuard().project(result.messages, { budget });
         assert.deepEqual(second.messages, result.messages);
+      },
+    ),
+    { numRuns: 100 },
+  );
+});
+
+test("protect projection through a compressing codec still satisfies arbitrary budgets", async () => {
+  await fc.assert(
+    fc.asyncProperty(
+      fc.array(imageData, { maxLength: 12 }),
+      fc.integer({ min: 0, max: 8 }),
+      fc.integer({ min: 0, max: 1024 }),
+      async (images, maxMediaBlocks, maxSerializedMediaBytes) => {
+        const messages: AgentMessage[] = [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "inspect" },
+              ...images.map((data) => ({ type: "image" as const, data, mimeType: "image/png" })),
+            ],
+            timestamp: 1,
+          },
+        ];
+        const original = structuredClone(messages);
+        const budget = {
+          maxMediaBlocks,
+          maxSerializedMediaBytes,
+          maxDecodedMediaBytes: Math.floor((maxSerializedMediaBytes * 3) / 4),
+          maxSerializedBytesPerImage: maxSerializedMediaBytes,
+        };
+
+        const guard = createMediaGuard({ codec: truncatingCodec });
+        const result = await guard.project(messages, { budget });
+        const footprint = mediaFootprint(buildMediaLedger(result.messages));
+
+        assert.ok(footprint.blocks <= budget.maxMediaBlocks);
+        assert.ok(footprint.serializedBytes <= budget.maxSerializedMediaBytes);
+        assert.ok(footprint.decodedBytes <= budget.maxDecodedMediaBytes);
+        assert.deepEqual(messages, original);
+        assert.equal(result.messages[0]?.role, "user");
+        if (result.messages[0]?.role === "user" && Array.isArray(result.messages[0].content)) {
+          assert.deepEqual(result.messages[0].content[0], { type: "text", text: "inspect" });
+          assert.equal(result.messages[0].content.length, images.length + 1);
+        }
+
+        // Projection is deterministic per input. It is intentionally NOT
+        // asserted to be idempotent with a codec: the fair-share target
+        // depends on the ledger's composition, which externalization changes,
+        // and production always projects the original session messages.
+        const repeat = await guard.project(messages, { budget });
+        assert.deepEqual(repeat.messages, result.messages);
+
+        // Re-projecting a projection must still satisfy every budget.
+        const second = await guard.project(result.messages, { budget });
+        const secondFootprint = mediaFootprint(buildMediaLedger(second.messages));
+        assert.ok(secondFootprint.blocks <= budget.maxMediaBlocks);
+        assert.ok(secondFootprint.serializedBytes <= budget.maxSerializedMediaBytes);
+        assert.ok(secondFootprint.decodedBytes <= budget.maxDecodedMediaBytes);
       },
     ),
     { numRuns: 100 },

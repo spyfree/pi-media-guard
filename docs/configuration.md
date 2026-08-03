@@ -38,9 +38,13 @@ The project file is read only when Pi reports the project as trusted. Both files
 
 Every budget field is optional and is measured in bytes except `maxMediaBlocks`. Values must be non-negative safe integers. A value of zero deliberately permits no media for that dimension.
 
-`mode` is `observe`, `optimize`, or `protect`. Setting `enabled` to `false` selects non-transforming observe behavior.
+`mode` is `observe`, `optimize`, or `protect`. Setting `enabled` to `false` bypasses the guard entirely: no ledger is built, no hashing happens, and requests pass through unchanged (`/media status` reports the guard as disabled). Use `mode: "observe"` for non-transforming inventory and reporting.
+
+> Changed in 0.1.0-beta.1: `enabled: false` previously behaved like `mode: "observe"` — it still inventoried and hashed every image on every request. It is now a true bypass.
 
 Profile names match Pi's exact `ctx.model.provider` value. They are open-ended: users can declare private gateways and providers unknown to pi-media-guard.
+
+Budgets are safety policies, not provider capability claims. Real provider caps differ per image, per request, and per API path — for example Anthropic's standard endpoint documents a 32 MB request cap with per-image limits, Amazon Bedrock enforces its own request body and per-image limits that differ between `InvokeModel` and `Converse`, and OpenAI documents a per-image cap for vision inputs. The built-in profiles stay deliberately below all of these so text, tool calls, and JSON framing keep headroom; verify your provider's current documented limits and widen the matching profile if you need more.
 
 ## Precedence
 

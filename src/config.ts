@@ -55,7 +55,8 @@ function parseBudget(value: unknown, path: string): ConfigParseFailure | MediaBu
   if (!isRecord(value)) return { ok: false, error: `${path} must be an object` };
   const budget: MediaBudgetOverride = {};
   for (const [field, raw] of Object.entries(value)) {
-    if (!BUDGET_FIELDS.has(field)) return { ok: false, error: `Unknown config field "${path}.${field}"` };
+    if (!BUDGET_FIELDS.has(field))
+      return { ok: false, error: `Unknown config field "${path}.${field}"` };
     if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
       return { ok: false, error: `${path}.${field} must be a non-negative safe integer` };
     }
@@ -64,7 +65,9 @@ function parseBudget(value: unknown, path: string): ConfigParseFailure | MediaBu
   return budget;
 }
 
-function isParseFailure(value: ConfigParseFailure | MediaBudgetOverride): value is ConfigParseFailure {
+function isParseFailure(
+  value: ConfigParseFailure | MediaBudgetOverride,
+): value is ConfigParseFailure {
   return "ok" in value && value.ok === false;
 }
 
@@ -139,18 +142,26 @@ export function mergeMediaGuardConfigs(
       ? { enabled: override.enabled ?? base.enabled }
       : {}),
     ...(base.mode || override.mode ? { mode: override.mode ?? base.mode } : {}),
-    ...(base.budget || override.budget
-      ? { budget: { ...base.budget, ...override.budget } }
-      : {}),
+    ...(base.budget || override.budget ? { budget: { ...base.budget, ...override.budget } } : {}),
     ...(profileNames.size > 0 ? { profiles } : {}),
   };
+}
+
+/**
+ * `enabled: false` bypasses the guard entirely: no ledger, no hashing, no
+ * projection. Use `mode: "observe"` for non-transforming inventory instead.
+ */
+export function resolveGuardEnabled(
+  globalConfig?: MediaGuardConfig,
+  projectConfig?: MediaGuardConfig,
+): boolean {
+  return (projectConfig?.enabled ?? globalConfig?.enabled) !== false;
 }
 
 export function resolveGuardMode(
   globalConfig?: MediaGuardConfig,
   projectConfig?: MediaGuardConfig,
 ): GuardMode {
-  if ((projectConfig?.enabled ?? globalConfig?.enabled) === false) return "observe";
   return projectConfig?.mode ?? globalConfig?.mode ?? "protect";
 }
 
@@ -229,10 +240,7 @@ export async function loadMediaGuardConfig(
     ? await readConfigLayer(projectPath, "project", diagnostics)
     : undefined;
   return {
-    config: mergeMediaGuardConfigs(
-      globalConfig ?? { version: 1 },
-      projectConfig ?? { version: 1 },
-    ),
+    config: mergeMediaGuardConfigs(globalConfig ?? { version: 1 }, projectConfig ?? { version: 1 }),
     globalConfig,
     projectConfig,
     diagnostics,

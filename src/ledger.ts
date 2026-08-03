@@ -2,17 +2,37 @@ import { createHash } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { MediaFootprint, MediaLedgerItem } from "./domain.js";
+import { decodedBase64Bytes } from "./media-bytes.js";
 
 function isImageContent(value: unknown): value is ImageContent {
   if (typeof value !== "object" || value === null) return false;
   const block = value as Partial<ImageContent>;
-  return block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string";
+  return (
+    block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string"
+  );
 }
 
-function decodedBase64Bytes(data: string): number {
-  if (data.length === 0) return 0;
-  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
-  return Math.floor((data.length * 3) / 4) - padding;
+// The ledger is rebuilt several times per request and session images are
+// re-sent on every model call, so the same Base64 payloads are hashed over and
+// over. Content-keyed memoization is safe across sessions; the bound keeps the
+// memo from retaining large Base64 strings after their session is gone.
+const HASH_MEMO_MAX_ENTRIES = 256;
+const hashMemo = new Map<string, string>();
+
+function hashOfBase64(data: string): string {
+  const cached = hashMemo.get(data);
+  if (cached !== undefined) {
+    hashMemo.delete(data);
+    hashMemo.set(data, cached);
+    return cached;
+  }
+  const hash = `sha256:${createHash("sha256").update(Buffer.from(data, "base64")).digest("hex")}`;
+  hashMemo.set(data, hash);
+  if (hashMemo.size > HASH_MEMO_MAX_ENTRIES) {
+    const oldest = hashMemo.keys().next().value;
+    if (oldest !== undefined) hashMemo.delete(oldest);
+  }
+  return hash;
 }
 
 function contentOf(message: AgentMessage): unknown[] {
@@ -39,9 +59,7 @@ function formatToolCall(name: string, args: unknown): string {
     serialized = "";
   }
   const origin = `tool ${name}(${serialized})`;
-  return origin.length > MAX_ORIGIN_LENGTH
-    ? `${origin.slice(0, MAX_ORIGIN_LENGTH - 1)}…`
-    : origin;
+  return origin.length > MAX_ORIGIN_LENGTH ? `${origin.slice(0, MAX_ORIGIN_LENGTH - 1)}…` : origin;
 }
 
 function describeToolCalls(messages: AgentMessage[]): Map<string, string> {
@@ -51,7 +69,11 @@ function describeToolCalls(messages: AgentMessage[]): Map<string, string> {
     for (const block of contentOf(message)) {
       if (typeof block !== "object" || block === null) continue;
       const call = block as { type?: unknown; id?: unknown; name?: unknown; arguments?: unknown };
-      if (call.type !== "toolCall" || typeof call.id !== "string" || typeof call.name !== "string") {
+      if (
+        call.type !== "toolCall" ||
+        typeof call.id !== "string" ||
+        typeof call.name !== "string"
+      ) {
         continue;
       }
       calls.set(call.id, formatToolCall(call.name, call.arguments));
@@ -82,13 +104,12 @@ export function buildMediaLedger(messages: AgentMessage[]): MediaLedgerItem[] {
     contentOf(message).forEach((block, contentIndex) => {
       if (!isImageContent(block)) return;
       const currentWorkingSet = currentTurnStart >= 0 && messageIndex >= currentTurnStart;
-      const digest = createHash("sha256").update(Buffer.from(block.data, "base64")).digest("hex");
       ledger.push({
         messageIndex,
         contentIndex,
         kind: "image",
         mimeType: block.mimeType,
-        hash: `sha256:${digest}`,
+        hash: hashOfBase64(block.data),
         serializedBytes: Buffer.byteLength(block.data, "utf8"),
         decodedBytes: decodedBase64Bytes(block.data),
         age: messages.length - 1 - messageIndex,
