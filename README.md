@@ -99,7 +99,7 @@ With a deterministic codec, all four visual inputs remain available at 1,600,000
 
 ## Development
 
-Requires Node.js 20 or newer.
+Requires Node.js 22.19 or newer, matching Pi's own engines requirement.
 
 ```bash
 npm test
