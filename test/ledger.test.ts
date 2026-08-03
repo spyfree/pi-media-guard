@@ -43,9 +43,7 @@ test("inventory records the originating tool call so evidence notes stay actiona
     { role: "user", content: "inspect the result", timestamp: 1 },
     {
       role: "assistant",
-      content: [
-        { type: "toolCall", id: "call-1", name: "read", arguments: { path: "shot.png" } },
-      ],
+      content: [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "shot.png" } }],
       api: "openai-responses",
       provider: "openai",
       model: "model",

@@ -3,7 +3,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 export interface MediaLedgerItem {
   messageIndex: number;
   contentIndex: number;
-  kind: "image" | "document";
+  kind: "image";
   mimeType: string;
   hash: string;
   serializedBytes: number;
@@ -78,6 +78,8 @@ export interface ResolvedMediaBudget {
 
 export interface GuardReport {
   mode: GuardMode;
+  /** True when `enabled: false` bypassed the guard entirely for this request. */
+  disabled?: boolean;
   pressure: PressureLevel;
   budget: MediaBudget;
   budgetProfile: string;
@@ -99,6 +101,12 @@ export interface MediaFootprint {
 export interface GuardResult {
   messages: AgentMessage[];
   report: GuardReport;
+  /**
+   * Per-image outcomes for the projected request. In `protect` mode these are
+   * the decisions that were applied; in `observe`/`optimize` they are what
+   * `protect` would have decided, for diagnostics only.
+   */
+  decisions: BudgetDecision[];
 }
 
 export interface MediaGuard {

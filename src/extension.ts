@@ -1,35 +1,25 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
-import { loadMediaGuardConfig, type LoadedMediaGuardConfig } from "./config.js";
-import { projectConfiguredRequest } from "./configured-projection.js";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CachingImageCodec } from "./codecs/cache.js";
 import { PiPhotonCodec } from "./codecs/pi-photon.js";
-import type { GuardReport } from "./domain.js";
-import { createMediaGuard } from "./media-guard.js";
-import {
-  emergencyProjectOpenAIResponsesPayload,
-  inspectOpenAIResponsesPayload,
-} from "./providers/openai-responses.js";
-import { formatMediaStatus } from "./status.js";
+import { type LoadedMediaGuardConfig, loadMediaGuardConfig } from "./config.js";
+import { projectConfiguredRequest } from "./configured-projection.js";
+import type { BudgetDecision, GuardReport } from "./domain.js";
+import { stripImageLeaves } from "./emergency.js";
+import { formatMiB } from "./media-bytes.js";
+import { PROVIDER_PAYLOAD_ADAPTERS } from "./providers/registry.js";
+import { formatMediaLedger, formatMediaStatus } from "./status.js";
 
 const STATUS_KEY = "pi-media-guard";
-const NO_MEDIA_BUDGET = Object.freeze({
-  maxMediaBlocks: 0,
-  maxSerializedMediaBytes: 0,
-  maxDecodedMediaBytes: 0,
-  maxSerializedBytesPerImage: 0,
-});
 
-function formatMiB(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
+function formatStatusMiB(bytes: number): string {
+  return formatMiB(bytes, 1, "M");
 }
 
 export default function piMediaGuardExtension(pi: ExtensionAPI): void {
   let loadedConfig: LoadedMediaGuardConfig | undefined;
   let lastWarning: string | undefined;
   let lastReport: GuardReport | undefined;
+  let lastDecisions: BudgetDecision[] | undefined;
   const codec = new CachingImageCodec(new PiPhotonCodec());
 
   async function loadConfig(ctx: ExtensionContext): Promise<LoadedMediaGuardConfig> {
@@ -47,6 +37,7 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx) => {
     lastWarning = undefined;
     lastReport = undefined;
+    lastDecisions = undefined;
     await loadConfig(ctx);
   });
 
@@ -60,16 +51,22 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
       });
       const { report } = result;
       lastReport = report;
+      lastDecisions = result.decisions;
+      if (report.disabled) {
+        ctx.ui.setStatus(STATUS_KEY, "media guard off");
+        lastWarning = undefined;
+        return { messages: result.messages };
+      }
       ctx.ui.setStatus(
         STATUS_KEY,
-        `media ${formatMiB(report.after.serializedBytes)}/${formatMiB(report.budget.maxSerializedMediaBytes)} · ${report.pressure}`,
+        `media ${formatStatusMiB(report.after.serializedBytes)}/${formatStatusMiB(report.budget.maxSerializedMediaBytes)} · ${report.pressure}`,
       );
 
       if (report.externalizedCurrent > 0) {
         const warning = `${ctx.model?.provider ?? "default"}:${report.before.serializedBytes}:${report.externalizedCurrent}`;
         if (warning !== lastWarning) {
           ctx.ui.notify(
-            `pi-media-guard replaced ${report.externalizedCurrent} current image(s) with text because the declared media budget was exceeded.`,
+            `pi-media-guard replaced ${report.externalizedCurrent} current image(s) with text because the declared media budget was exceeded. Run /media ledger for details.`,
             "warning",
           );
           lastWarning = warning;
@@ -80,36 +77,37 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
       return { messages: result.messages };
     } catch (error) {
       ctx.ui.notify(
-        `pi-media-guard projection failed; sending a text-only emergency projection: ${(error as Error).message}`,
+        `pi-media-guard projection failed; stripping images from this request: ${(error as Error).message}`,
         "error",
       );
-      const emergency = await createMediaGuard().project(event.messages, {
-        budgetProfile: "emergency-text-only",
-        budget: NO_MEDIA_BUDGET,
-      });
-      return { messages: emergency.messages };
+      try {
+        return { messages: stripImageLeaves(event.messages) };
+      } catch {
+        // Truly unreachable in practice; passing the request through unchanged
+        // beats breaking the user's model call with a second exception.
+        return undefined;
+      }
     }
   });
 
   pi.on("before_provider_request", (event, ctx) => {
-    if (ctx.model?.provider !== "openai-codex") return;
-    const footprint = inspectOpenAIResponsesPayload(event.payload);
-    if (
-      lastReport &&
-      footprint.serializedMediaBytes > lastReport.budget.maxSerializedMediaBytes
-    ) {
+    const provider = ctx.model?.provider;
+    const adapter = provider ? PROVIDER_PAYLOAD_ADAPTERS[provider] : undefined;
+    if (!adapter || lastReport?.disabled) return;
+    const footprint = adapter.inspect(event.payload);
+    if (lastReport && footprint.serializedMediaBytes > lastReport.budget.maxSerializedMediaBytes) {
       ctx.ui.notify(
-        `pi-media-guard final Codex payload contains ${formatMiB(footprint.serializedMediaBytes)} of media, above the declared ${formatMiB(lastReport.budget.maxSerializedMediaBytes)} budget.`,
+        `pi-media-guard final ${provider} payload contains ${formatStatusMiB(footprint.serializedMediaBytes)} of media, above the declared ${formatStatusMiB(lastReport.budget.maxSerializedMediaBytes)} budget.`,
         "error",
       );
       if (lastReport.mode === "protect") {
-        return emergencyProjectOpenAIResponsesPayload(event.payload);
+        return adapter.emergencyProject(event.payload);
       }
     }
   });
 
   pi.registerCommand("media", {
-    description: "Show pi-media-guard status or reload its configuration",
+    description: "Show pi-media-guard status, per-image ledger, or reload its configuration",
     handler: async (args, ctx) => {
       const action = args.trim() || "status";
       if (action === "reload") {
@@ -124,8 +122,17 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
         );
         return;
       }
+      if (action === "ledger") {
+        ctx.ui.notify(
+          lastReport && lastDecisions
+            ? formatMediaLedger(lastDecisions, lastReport.mode)
+            : "Media Guard: waiting for the first model request",
+          "info",
+        );
+        return;
+      }
       if (action !== "status") {
-        ctx.ui.notify("Usage: /media [status|reload]", "warning");
+        ctx.ui.notify("Usage: /media [status|ledger|reload]", "warning");
         return;
       }
       ctx.ui.notify(
@@ -142,6 +149,7 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
     loadedConfig = undefined;
     lastWarning = undefined;
     lastReport = undefined;
+    lastDecisions = undefined;
     codec.clear();
   });
 }

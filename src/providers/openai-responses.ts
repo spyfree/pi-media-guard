@@ -1,14 +1,10 @@
+import { decodedBase64Bytes } from "../media-bytes.js";
+
 export interface PayloadFootprint {
   totalSerializedBytes: number;
   mediaBlocks: number;
   serializedMediaBytes: number;
   decodedMediaBytes: number;
-}
-
-function decodedBase64Bytes(data: string): number {
-  if (data.length === 0) return 0;
-  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
-  return Math.floor((data.length * 3) / 4) - padding;
 }
 
 function base64ImageData(value: string): string | undefined {

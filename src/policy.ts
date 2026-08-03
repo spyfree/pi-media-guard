@@ -43,8 +43,9 @@ export const BUILTIN_MEDIA_PROFILES: MediaBudgetProfiles = Object.freeze({
 });
 
 export function resolveMediaBudget(environment: GuardEnvironment = {}): ResolvedMediaBudget {
-  const builtIn = environment.provider ? BUILTIN_MEDIA_PROFILES[environment.provider] : undefined;
-  const configured = environment.provider ? environment.profiles?.[environment.provider] : undefined;
+  const provider = environment.provider;
+  const builtIn = provider ? BUILTIN_MEDIA_PROFILES[provider] : undefined;
+  const configured = provider ? environment.profiles?.[provider] : undefined;
   return {
     budget: {
       ...DEFAULT_MEDIA_BUDGET,
@@ -53,7 +54,7 @@ export function resolveMediaBudget(environment: GuardEnvironment = {}): Resolved
       ...environment.budget,
     },
     profile:
-      environment.budgetProfile ?? (builtIn || configured ? environment.provider! : "default"),
+      environment.budgetProfile ?? (provider && (builtIn || configured) ? provider : "default"),
   };
 }
 

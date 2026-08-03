@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  BUILTIN_MEDIA_PROFILES,
-  DEFAULT_MEDIA_BUDGET,
-  resolveMediaBudget,
-} from "../src/policy.js";
+import { BUILTIN_MEDIA_PROFILES, DEFAULT_MEDIA_BUDGET, resolveMediaBudget } from "../src/policy.js";
 
 test("budget resolution detects the Pi provider and applies user overrides last", () => {
   const resolved = resolveMediaBudget({
@@ -17,9 +13,15 @@ test("budget resolution detects the Pi provider and applies user overrides last"
 
   assert.equal(resolved.profile, "amazon-bedrock");
   assert.equal(resolved.budget.maxSerializedMediaBytes, 12 * 1024 * 1024);
-  assert.equal(resolved.budget.maxDecodedMediaBytes, BUILTIN_MEDIA_PROFILES["amazon-bedrock"]?.maxDecodedMediaBytes);
+  assert.equal(
+    resolved.budget.maxDecodedMediaBytes,
+    BUILTIN_MEDIA_PROFILES["amazon-bedrock"]?.maxDecodedMediaBytes,
+  );
   assert.equal(resolved.budget.maxMediaBlocks, 6);
-  assert.equal(resolved.budget.maxSerializedBytesPerImage, BUILTIN_MEDIA_PROFILES["amazon-bedrock"]?.maxSerializedBytesPerImage);
+  assert.equal(
+    resolved.budget.maxSerializedBytesPerImage,
+    BUILTIN_MEDIA_PROFILES["amazon-bedrock"]?.maxSerializedBytesPerImage,
+  );
 });
 
 test("unknown providers retain the conservative default budget", () => {

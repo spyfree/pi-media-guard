@@ -1,6 +1,6 @@
 import type { MediaLedgerItem, ProjectionReason } from "./domain.js";
 
-const REASON_LABELS: Record<ProjectionReason, string> = {
+export const REASON_LABELS: Record<ProjectionReason, string> = {
   duplicate: "duplicate media",
   "per-image-budget": "per-image budget",
   "aggregate-budget": "aggregate budget",

@@ -4,7 +4,7 @@ Deterministic aggregate media budgets and safe request projections for [Pi](http
 
 `pi-media-guard` keeps multimodal sessions usable when individually valid images become unsafe in aggregate. Before every model call it inventories canonical Pi image blocks, deduplicates them, constrains oversized images with Pi's Photon codec, and replaces media that still cannot fit with factual text Evidence Notes. Stored session JSONL is not modified.
 
-> **Alpha:** This release implements the canonical image guard and OpenAI Codex payload audit. Provider payload surgery, media-safe compaction, PDF workflows, and semantic vision descriptions are not included yet.
+> **Beta:** This release implements the canonical image guard and the OpenAI Codex final-payload audit. Provider payload surgery for other providers, media-safe compaction, PDF workflows, and semantic vision descriptions are not included yet.
 
 ## Install
 
@@ -24,7 +24,7 @@ pi install /absolute/path/to/pi-media-guard
 
 > **Do not use `pi install git:...` for this package.** Pi installs git packages by cloning the repository and running `npm install --omit=dev`, which never runs the TypeScript build. Because `dist/` is not committed to git, the extension entry point `dist/extension.js` would be missing and the extension would fail to load. The npm tarball ships prebuilt `dist/`, and the local-checkout flow builds it explicitly.
 
-Restart Pi after installation. Use `/media` or `/media status` after the first model request.
+Restart Pi after installation. Use `/media` or `/media status` after the first model request, and `/media ledger` for a per-image breakdown of the last projection (what was kept, compressed, externalized, and why).
 
 ## Default behavior
 
@@ -36,7 +36,7 @@ Restart Pi after installation. Use `/media` or `/media status` after the first m
 - Preserves message order, roles, thinking/signatures, and tool call/result IDs.
 - Does not modify persistent session JSONL or send telemetry.
 
-The default/OpenAI Codex serialized-media budget is 2 MiB. This is a safety policy, not a claim about the provider's maximum HTTP body size.
+The default/OpenAI Codex serialized-media budget is 2 MiB. This is a safety policy, not a claim about the provider's maximum HTTP body size. Provider caps differ widely (per image, per request, and per API path), so the built-in profiles stay deliberately conservative and leave headroom for text, tools, and JSON framing; raise them per provider with a `profiles` entry when your provider allows more.
 
 ## Configuration
 
@@ -83,6 +83,8 @@ Modes:
 - `optimize`: compress but do not externalize;
 - `protect`: compress, then externalize overflow media.
 
+Setting `enabled: false` bypasses the guard entirely — no inventory, no hashing, no projection. Use `mode: "observe"` if you want reporting without transformation.
+
 See [docs/configuration.md](docs/configuration.md) for precedence and validation rules.
 
 ## Anonymous regression
@@ -97,11 +99,18 @@ With a deterministic codec, all four visual inputs remain available at 1,600,000
 
 ## Development
 
+Requires Node.js 20 or newer.
+
 ```bash
 npm test
 npm run typecheck
+npm run lint
 npm run build
 ```
+
+## Releasing
+
+Pushing a `v*` tag that matches `package.json`'s version runs the release workflow: lint, typecheck, tests, then `npm publish` with [provenance](https://docs.npmjs.com/generating-provenance-statements). The repository needs an `NPM_TOKEN` secret with publish rights (or npm Trusted Publishing configured for this workflow).
 
 ## Security and privacy
 
