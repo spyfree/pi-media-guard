@@ -4,9 +4,13 @@ on:
   push:
     tags:
       - "v*"
+  # Manual runs release the version in package.json on the chosen branch:
+  # the workflow creates the matching v<version> tag itself, then publishes.
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  # write is needed so a manual run can push the release tag.
+  contents: write
   # Required for npm provenance attestation.
   id-token: write
 
@@ -21,6 +25,7 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
       - name: Check tag matches package version
+        if: github.event_name == 'push'
         run: |
           set -eu
           tag="${GITHUB_REF_NAME#v}"
@@ -29,6 +34,20 @@ jobs:
             echo "Tag v$tag does not match package.json version $version" >&2
             exit 1
           fi
+      - name: Create release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -eu
+          version="$(node -p "require('./package.json').version")"
+          if git ls-remote --exit-code origin "refs/tags/v$version" > /dev/null 2>&1; then
+            echo "Tag v$version already exists; bump package.json first" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$version" -m "Release v$version"
+          # Pushing with GITHUB_TOKEN does not retrigger this workflow.
+          git push origin "v$version"
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
