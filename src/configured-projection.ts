@@ -32,6 +32,7 @@ export async function projectConfiguredRequest(
         mode: "observe",
         disabled: true,
         pressure: "green",
+        currentPressure: "green",
         budget: resolved.budget,
         budgetProfile: resolved.profile,
         before: EMPTY_FOOTPRINT,

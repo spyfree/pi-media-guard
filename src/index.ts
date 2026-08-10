@@ -58,4 +58,4 @@ export {
 } from "./providers/openai-responses.js";
 export type { ProviderPayloadAdapter } from "./providers/registry.js";
 export { PROVIDER_PAYLOAD_ADAPTERS } from "./providers/registry.js";
-export { formatMediaLedger, formatMediaStatus } from "./status.js";
+export { formatMediaFooterStatus, formatMediaLedger, formatMediaStatus } from "./status.js";

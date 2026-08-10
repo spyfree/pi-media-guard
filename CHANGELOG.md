@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-beta.2
+
+- Make the footer and `/media status` distinguish original input pressure from
+  the current projected request. Status now reports images kept, compression
+  and externalization counts, current media size, and readable safety labels.
+- **API:** `GuardReport` gains `currentPressure`; the existing `pressure` field
+  continues to describe the original request before processing.
+
 ## 0.1.0-beta.1
 
 - **Breaking (config):** `enabled: false` now bypasses the guard entirely — no

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { GuardReport } from "../src/domain.js";
-import { formatMediaStatus } from "../src/status.js";
+import { formatMediaFooterStatus, formatMediaStatus } from "../src/status.js";
 
 const report: GuardReport = {
   mode: "protect",
   pressure: "red",
+  currentPressure: "yellow",
   budget: {
     maxMediaBlocks: 8,
     maxSerializedMediaBytes: 2_097_152,
@@ -22,15 +23,22 @@ const report: GuardReport = {
   deduplicated: 0,
 };
 
-test("media status explains the resolved profile and projection actions", () => {
+test("media status distinguishes input pressure from the current projected request", () => {
   assert.equal(
     formatMediaStatus(report),
     [
-      "Media Guard: red (protect)",
+      "Media Guard: near limit now (protect)",
       "Profile: openai-codex",
-      "Before: 4 blocks, 6.26 MiB serialized",
-      "After: 4 blocks, 1.53 MiB / 2.00 MiB",
-      "Last projection: compressed 4, externalized 0, deduplicated 0",
+      "Input: over limit (red) — 4 images, 6.26 MiB serialized",
+      "Current: near limit (yellow) — 4/4 images kept, 1.53 MiB / 2.00 MiB",
+      "Processing: compressed 4, externalized 0, deduplicated 0",
     ].join("\n"),
+  );
+});
+
+test("footer status summarizes current safety, image count, actions, and prior pressure", () => {
+  assert.equal(
+    formatMediaFooterStatus(report),
+    "media near limit now · 4/4 images kept · 1.5M/2.0M · 4 compressed · input over limit",
   );
 });

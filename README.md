@@ -24,7 +24,7 @@ pi install /absolute/path/to/pi-media-guard
 
 > **Do not use `pi install git:...` for this package.** Pi installs git packages by cloning the repository and running `npm install --omit=dev`, which never runs the TypeScript build. Because `dist/` is not committed to git, the extension entry point `dist/extension.js` would be missing and the extension would fail to load. The npm tarball ships prebuilt `dist/`, and the local-checkout flow builds it explicitly.
 
-Restart Pi after installation. Use `/media` or `/media status` after the first model request, and `/media ledger` for a per-image breakdown of the last projection (what was kept, compressed, externalized, and why).
+Restart Pi after installation. The footer summarizes current request safety, images kept, media size, and processing actions while distinguishing the original input pressure. Use `/media` or `/media status` after the first model request for the full before/current breakdown, and `/media ledger` for per-image decisions (what was kept, compressed, externalized, and why).
 
 ## Default behavior
 

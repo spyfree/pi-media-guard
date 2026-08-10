@@ -1,17 +1,54 @@
-import type { BudgetDecision, GuardMode, GuardReport } from "./domain.js";
+import type { BudgetDecision, GuardMode, GuardReport, PressureLevel } from "./domain.js";
 import { REASON_LABELS } from "./evidence-note.js";
 import { formatMiB } from "./media-bytes.js";
+
+const PRESSURE_LABELS: Readonly<Record<PressureLevel, string>> = Object.freeze({
+  green: "safe",
+  yellow: "near limit",
+  red: "over limit",
+});
+
+function imageLabel(count: number): string {
+  return `${count} image${count === 1 ? "" : "s"}`;
+}
+
+function compactProcessingSummary(report: GuardReport): string {
+  if (report.mode === "observe") return "observe only";
+  const actions = [
+    report.compressed > 0 ? `${report.compressed} compressed` : undefined,
+    report.externalized > 0 ? `${report.externalized} externalized` : undefined,
+    report.deduplicated > 0 ? `${report.deduplicated} deduplicated` : undefined,
+  ].filter((action): action is string => action !== undefined);
+  return actions.length > 0 ? actions.join(", ") : "unchanged";
+}
+
+export function formatMediaFooterStatus(report: GuardReport): string {
+  if (report.disabled) return "media guard off";
+  const current = PRESSURE_LABELS[report.currentPressure];
+  const inputTransition =
+    report.pressure === report.currentPressure
+      ? ""
+      : ` · input ${PRESSURE_LABELS[report.pressure]}`;
+  return (
+    [
+      `media ${current} now`,
+      `${report.after.blocks}/${report.before.blocks} ${report.before.blocks === 1 ? "image" : "images"} kept`,
+      `${formatMiB(report.after.serializedBytes, 1, "M")}/${formatMiB(report.budget.maxSerializedMediaBytes, 1, "M")}`,
+      compactProcessingSummary(report),
+    ].join(" · ") + inputTransition
+  );
+}
 
 export function formatMediaStatus(report: GuardReport): string {
   if (report.disabled) {
     return "Media Guard: disabled (`enabled: false`) — requests pass through unchanged";
   }
   return [
-    `Media Guard: ${report.pressure} (${report.mode})`,
+    `Media Guard: ${PRESSURE_LABELS[report.currentPressure]} now (${report.mode})`,
     `Profile: ${report.budgetProfile}`,
-    `Before: ${report.before.blocks} blocks, ${formatMiB(report.before.serializedBytes)} serialized`,
-    `After: ${report.after.blocks} blocks, ${formatMiB(report.after.serializedBytes)} / ${formatMiB(report.budget.maxSerializedMediaBytes)}`,
-    `Last projection: compressed ${report.compressed}, externalized ${report.externalized}, deduplicated ${report.deduplicated}`,
+    `Input: ${PRESSURE_LABELS[report.pressure]} (${report.pressure}) — ${imageLabel(report.before.blocks)}, ${formatMiB(report.before.serializedBytes)} serialized`,
+    `Current: ${PRESSURE_LABELS[report.currentPressure]} (${report.currentPressure}) — ${report.after.blocks}/${report.before.blocks} ${report.before.blocks === 1 ? "image" : "images"} kept, ${formatMiB(report.after.serializedBytes)} / ${formatMiB(report.budget.maxSerializedMediaBytes)}`,
+    `Processing: compressed ${report.compressed}, externalized ${report.externalized}, deduplicated ${report.deduplicated}`,
   ].join("\n");
 }
 

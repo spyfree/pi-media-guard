@@ -80,7 +80,10 @@ export interface GuardReport {
   mode: GuardMode;
   /** True when `enabled: false` bypassed the guard entirely for this request. */
   disabled?: boolean;
+  /** Pressure of the original request before compression or externalization. */
   pressure: PressureLevel;
+  /** Pressure of the request that will currently be sent to the provider. */
+  currentPressure: PressureLevel;
   budget: MediaBudget;
   budgetProfile: string;
   before: MediaFootprint;

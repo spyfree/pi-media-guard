@@ -121,7 +121,10 @@ test("context hook projects overflow media, sets footer status, and warns once",
   assert.equal(evidenceNotes(result.messages).length, 1);
   const status = ui.statuses.at(-1);
   assert.equal(status?.key, "pi-media-guard");
-  assert.match(String(status?.value), /^media .* · red$/);
+  assert.equal(
+    status?.value,
+    "media near limit now · 8/9 images kept · 0.0M/2.0M · 1 externalized · input over limit",
+  );
   const warnings = ui.notifications.filter((entry) => entry.level === "warning");
   assert.equal(warnings.length, 1);
   assert.match(warnings[0]?.message ?? "", /replaced 1 current image/);
@@ -200,7 +203,7 @@ test("/media supports status and reload and rejects unknown actions", async () =
   await host.emit("session_start", { type: "session_start" }, ctx);
   await host.emit("context", { type: "context", messages: nineImageMessages() }, ctx);
   await media.handler("status", ctx);
-  assert.match(ui.notifications.at(-1)?.message ?? "", /^Media Guard: red \(protect\)/);
+  assert.match(ui.notifications.at(-1)?.message ?? "", /^Media Guard: near limit now \(protect\)/);
 });
 
 test("session_shutdown clears the footer status", async () => {

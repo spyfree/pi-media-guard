@@ -174,6 +174,7 @@ class DefaultMediaGuard implements MediaGuard {
         report: {
           mode,
           pressure: originalPressure,
+          currentPressure: originalPressure,
           budget: resolvedBudget.budget,
           budgetProfile: resolvedBudget.profile,
           before: mediaFootprint(originalLedger),
@@ -195,12 +196,14 @@ class DefaultMediaGuard implements MediaGuard {
     );
     const constrainedLedger = buildMediaLedger(constrained.messages);
     if (mode === "optimize") {
+      const constrainedPlan = planMediaBudget(constrainedLedger, resolvedBudget.budget);
       return {
         messages: constrained.messages,
-        decisions: planMediaBudget(constrainedLedger, resolvedBudget.budget).decisions,
+        decisions: constrainedPlan.decisions,
         report: {
           mode,
           pressure: originalPressure,
+          currentPressure: constrainedPlan.pressure,
           budget: resolvedBudget.budget,
           budgetProfile: resolvedBudget.profile,
           before: mediaFootprint(originalLedger),
@@ -216,6 +219,7 @@ class DefaultMediaGuard implements MediaGuard {
     const plan = planMediaBudget(constrainedLedger, resolvedBudget.budget);
     const projectedMessages = replaceRejectedImages(constrained.messages, plan.decisions);
     const projectedLedger = buildMediaLedger(projectedMessages);
+    const currentPressure = planMediaBudget(projectedLedger, resolvedBudget.budget).pressure;
     const externalized = plan.decisions.filter((decision) => decision.action === "externalize");
 
     return {
@@ -224,6 +228,7 @@ class DefaultMediaGuard implements MediaGuard {
       report: {
         mode,
         pressure: originalPressure,
+        currentPressure,
         budget: resolvedBudget.budget,
         budgetProfile: resolvedBudget.profile,
         before: mediaFootprint(originalLedger),

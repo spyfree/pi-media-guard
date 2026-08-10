@@ -7,7 +7,7 @@ import type { BudgetDecision, GuardReport } from "./domain.js";
 import { stripImageLeaves } from "./emergency.js";
 import { formatMiB } from "./media-bytes.js";
 import { PROVIDER_PAYLOAD_ADAPTERS } from "./providers/registry.js";
-import { formatMediaLedger, formatMediaStatus } from "./status.js";
+import { formatMediaFooterStatus, formatMediaLedger, formatMediaStatus } from "./status.js";
 
 const STATUS_KEY = "pi-media-guard";
 
@@ -57,10 +57,7 @@ export default function piMediaGuardExtension(pi: ExtensionAPI): void {
         lastWarning = undefined;
         return { messages: result.messages };
       }
-      ctx.ui.setStatus(
-        STATUS_KEY,
-        `media ${formatStatusMiB(report.after.serializedBytes)}/${formatStatusMiB(report.budget.maxSerializedMediaBytes)} · ${report.pressure}`,
-      );
+      ctx.ui.setStatus(STATUS_KEY, formatMediaFooterStatus(report));
 
       if (report.externalizedCurrent > 0) {
         const warning = `${ctx.model?.provider ?? "default"}:${report.before.serializedBytes}:${report.externalizedCurrent}`;

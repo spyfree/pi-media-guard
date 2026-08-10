@@ -23,6 +23,7 @@ test("observe mode reports pressure without changing media", async () => {
   const result = await createMediaGuard().project(messages, { budget, mode: "observe" });
 
   assert.equal(result.report.pressure, "red");
+  assert.equal(result.report.currentPressure, "red");
   assert.equal(result.report.externalized, 0);
   assert.deepEqual(result.messages, messages);
 });
@@ -87,5 +88,7 @@ test("request projection replaces only rejected image leaves and does not mutate
     ).includes('Source: tool read({"path":"shot.png"})'),
   );
   assert.deepEqual(result.report.after, { blocks: 0, serializedBytes: 0, decodedBytes: 0 });
+  assert.equal(result.report.pressure, "red");
+  assert.equal(result.report.currentPressure, "green");
   assert.equal(result.report.externalized, 1);
 });
