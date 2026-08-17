@@ -29,12 +29,15 @@ export function resolveMediaBudget(environment: GuardEnvironment = {}): Resolved
   const provider = environment.provider;
   const builtIn = provider ? BUILTIN_MEDIA_PROFILES[provider] : undefined;
   const configured = provider ? environment.profiles?.[provider] : undefined;
+  // The per-provider profile is more specific than the top-level budget
+  // override, so it wins for the fields it declares (the Pi original's
+  // 0.1.0-alpha.2 changelog records exactly this precedence bug).
   return {
     budget: {
       ...DEFAULT_MEDIA_BUDGET,
       ...builtIn,
-      ...configured,
       ...environment.budget,
+      ...configured,
     },
     profile:
       environment.budgetProfile ?? (provider && (builtIn || configured) ? provider : "default"),

@@ -21,9 +21,20 @@ test("a configured profile overrides the default for its fields only", () => {
   assert.equal(resolved.profile, "my-gateway");
 });
 
-test("an explicit budget override outranks the provider profile", () => {
+test("the provider profile outranks the top-level budget for the fields it declares", () => {
   const resolved = resolveMediaBudget({
     provider: "my-gateway",
+    profiles: { "my-gateway": { maxSerializedMediaBytes: 8_000_000 } },
+    budget: { maxSerializedMediaBytes: 1_000_000, maxMediaBlocks: 4 },
+  });
+  // The profile wins where it speaks; the budget override still applies elsewhere.
+  assert.equal(resolved.budget.maxSerializedMediaBytes, 8_000_000);
+  assert.equal(resolved.budget.maxMediaBlocks, 4);
+});
+
+test("the top-level budget applies to routes without a profile", () => {
+  const resolved = resolveMediaBudget({
+    provider: "other-route",
     profiles: { "my-gateway": { maxSerializedMediaBytes: 8_000_000 } },
     budget: { maxSerializedMediaBytes: 1_000_000 },
   });
