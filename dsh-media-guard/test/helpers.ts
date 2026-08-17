@@ -41,6 +41,14 @@ export function pluginMessage(plugin: string, ...content: ContentBlock[]): Messa
   return createUserMessage({ content, source: { kind: "plugin", plugin } });
 }
 
+/** A subagent coordinator relay: user role, merge-extended source kind. */
+export function coordinatorMessage(...content: ContentBlock[]): Message {
+  return createUserMessage({
+    content,
+    source: { kind: "coordinator" } as unknown as Message["source"],
+  });
+}
+
 export function assistantText(value: string): Message {
   return createAssistantMessage({
     content: [text(value)],

@@ -129,13 +129,21 @@ function originFor(
  */
 export function buildMediaLedger(messages: Message[]): MediaLedgerItem[] {
   let currentTurnStart = -1;
+  let fallbackTurnStart = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message !== undefined && message.role === "user" && sourceKind(message) === "user") {
+    if (message === undefined || message.role !== "user") continue;
+    const kind = sourceKind(message);
+    if (kind === "user") {
       currentTurnStart = index;
       break;
     }
+    // Sessions without any real user message are still turn-driven — a
+    // subagent coordinator's relay opens the turn as a user-role message with
+    // a merge-extended source kind. Tool results never open a turn.
+    if (fallbackTurnStart === -1 && kind !== "tool") fallbackTurnStart = index;
   }
+  if (currentTurnStart === -1) currentTurnStart = fallbackTurnStart;
 
   const toolCalls = describeToolCalls(messages);
   const ledger: MediaLedgerItem[] = [];

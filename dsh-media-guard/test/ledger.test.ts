@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildMediaLedger, mediaFootprint } from "../src/ledger.js";
 import { base64BytesForBinary } from "../src/media-bytes.js";
-import { assistantToolCall, image, pluginMessage, ref, text, toolResult, user } from "./helpers.js";
+import {
+  assistantToolCall,
+  coordinatorMessage,
+  image,
+  pluginMessage,
+  ref,
+  text,
+  toolResult,
+  user,
+} from "./helpers.js";
 
 test("identity, sizes, and dimensions come straight from the attachment ref", () => {
   const attachment = ref(300_000, "solo", { width: 640, height: 480, mediaType: "image/webp" });
@@ -67,6 +76,24 @@ test("everything from the last real user message onward is the current working s
   const ledger = buildMediaLedger(messages);
   assert.equal(ledger[0]?.currentWorkingSet, true);
   assert.equal(ledger[0]?.priority, 600);
+});
+
+test("a coordinator-opened session still gets a current working set", () => {
+  // A subagent session driven entirely by coordinator relays has no
+  // kind-'user' message; the last non-tool user-role message anchors instead.
+  const messages = [
+    coordinatorMessage(text("earlier relay"), image(ref(1_000, "relay-old"))),
+    coordinatorMessage(text("inspect this"), image(ref(2_000, "relay-new"))),
+    assistantToolCall("call-1", "screenshot", "{}"),
+    toolResult("call-1", image(ref(3_000, "relay-shot"))),
+  ];
+  const ledger = buildMediaLedger(messages);
+  const bySeed = (seed: string) => ledger.find((item) => item.hash === ref(0, seed).attachmentId);
+  assert.equal(bySeed("relay-old")?.currentWorkingSet, false);
+  assert.equal(bySeed("relay-new")?.currentWorkingSet, true);
+  assert.equal(bySeed("relay-new")?.priority, 550);
+  assert.equal(bySeed("relay-shot")?.currentWorkingSet, true);
+  assert.equal(bySeed("relay-shot")?.priority, 600);
 });
 
 test("tool-call origins are truncated at 160 characters", () => {
