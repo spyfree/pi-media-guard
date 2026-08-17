@@ -1,0 +1,72 @@
+{
+  "name": "dsh-media-guard",
+  "version": "0.1.0-alpha.0",
+  "description": "Deterministic aggregate media budgets and safe request projections for DeepSeek Harness (DSH)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "DESIGN.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "llm",
+    "image",
+    "media",
+    "multimodal"
+  ],
+  "author": "Li Xin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spyfree/dsh-media-guard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/spyfree/dsh-media-guard/issues"
+  },
+  "homepage": "https://github.com/spyfree/dsh-media-guard#readme",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1-rc.1 <5",
+    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-attachment": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
+    "@types/node": "^22.0.0",
+    "fast-check": "^4.3.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
