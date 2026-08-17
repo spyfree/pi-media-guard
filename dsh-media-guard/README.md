@@ -23,6 +23,8 @@ dsh plugin --profile <name> add dsh-media-guard
 
 Restart the profile afterwards. The bundle inserts a `media-guard` row; no configuration is required for the defaults.
 
+Installing straight from a git host (`dsh plugin --profile <name> add github:spyfree/dsh-media-guard`) builds `dist/` via the package's self-contained `prepare` script; pnpm ≥ 10 will ask you to allowlist that build in the profile's `pnpm-workspace.yaml` on first install, exactly as DSH's packaging guide describes.
+
 ## Default behavior
 
 - Runs in `protect` mode before every agent-loop provider request.
@@ -37,24 +39,27 @@ The default budget is a safety policy, not a claim about any provider's maximum 
 
 ## Configuration
 
-Override the plugin row from your profile's `cordis.patch.yml`:
+Override the plugin row from your profile's `cordis.patch.yml` with a flat
+patch entry targeting the row id (the same form DSH's own bundles use):
 
 ```yaml
-- update:
-    - id: media-guard
-      config:
-        mode: protect            # observe | optimize | protect
-        log: false               # true prints a one-line summary per projection
-        budget:
-          maxMediaBlocks: 8
-          maxSerializedMediaBytes: 2097152
-          maxDecodedMediaBytes: 1572864
-          maxSerializedBytesPerImage: 524288
-        profiles:                # keyed by the request's provider route id
-          my-vision-gateway:
-            maxSerializedMediaBytes: 12582912
-            maxDecodedMediaBytes: 9437184
+- id: media-guard
+  config:
+    mode: protect            # observe | optimize | protect
+    log: false               # true prints a one-line summary per projection
+    budget:
+      maxMediaBlocks: 8
+      maxSerializedMediaBytes: 2097152
+      maxDecodedMediaBytes: 1572864
+      maxSerializedBytesPerImage: 524288
+    profiles:                # keyed by the request's provider route id
+      my-vision-gateway:
+        maxSerializedMediaBytes: 12582912
+        maxDecodedMediaBytes: 9437184
 ```
+
+A `profiles` entry is more specific than the top-level `budget`, so for the
+fields it declares it wins on its route even when both are set.
 
 Modes:
 

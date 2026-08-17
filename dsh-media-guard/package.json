@@ -25,7 +25,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "prepare": "npm run build"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

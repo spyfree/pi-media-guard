@@ -1,12 +1,12 @@
 # The dsh-media-guard bundle layer: one plugin row. Override the row by id
-# from the profile's own cordis.patch.yml to configure it, e.g.:
+# from the profile's own cordis.patch.yml to configure it — a flat patch
+# entry whose id targets this row, e.g.:
 #
-# - update:
-#     - id: media-guard
-#       config:
-#         mode: observe
-#         budget:
-#           maxSerializedMediaBytes: 4194304
+# - id: media-guard
+#   config:
+#     mode: observe
+#     budget:
+#       maxSerializedMediaBytes: 4194304
 - insert:
     - id: media-guard
       name: dsh-media-guard
