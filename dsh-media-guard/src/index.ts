@@ -15,15 +15,17 @@
  */
 
 import type { Context } from "@deepseek-ai/cordis";
-import { isAgentLoopRequest } from "@deepseek-ai/dsh-llm";
 import type { GenerateOptions, StreamChunk } from "@deepseek-ai/dsh-llm";
+import { isAgentLoopRequest } from "@deepseek-ai/dsh-llm";
+import type { Config, ResolvedGuardConfig } from "./config.js";
+import { resolveGuardConfig } from "./config.js";
 import type { GuardReport, GuardResult, MediaGuard } from "./domain.js";
 import { stripImageLeaves } from "./emergency.js";
 import { createMediaGuard } from "./media-guard.js";
-import type { Config, ResolvedGuardConfig } from "./config.js";
-import { resolveGuardConfig } from "./config.js";
 import { formatReportSummary } from "./status.js";
 
+export type { Config, GuardConfigResolution, ResolvedGuardConfig } from "./config.js";
+export { resolveGuardConfig } from "./config.js";
 export type {
   BudgetDecision,
   BudgetPlan,
@@ -48,9 +50,9 @@ export { createEvidenceNote, REASON_LABELS } from "./evidence-note.js";
 export { buildMediaLedger, mediaFootprint, walkImages } from "./ledger.js";
 export { base64BytesForBinary } from "./media-bytes.js";
 export {
+  type CreateMediaGuardOptions,
   createMediaGuard,
   DEFAULT_COMPRESSION_TIMEOUT_MS,
-  type CreateMediaGuardOptions,
 } from "./media-guard.js";
 export {
   BUILTIN_MEDIA_PROFILES,
@@ -58,8 +60,6 @@ export {
   planMediaBudget,
   resolveMediaBudget,
 } from "./policy.js";
-export { resolveGuardConfig } from "./config.js";
-export type { Config, GuardConfigResolution, ResolvedGuardConfig } from "./config.js";
 export { formatReportSummary } from "./status.js";
 
 declare module "@deepseek-ai/cordis" {
@@ -136,7 +136,10 @@ export function createLlmStreamListener(
   ctx: GuardContext,
   guard: MediaGuard,
   config: ResolvedGuardConfig,
-): (options: GenerateOptions, next: () => AsyncIterable<StreamChunk>) => AsyncIterable<StreamChunk> {
+): (
+  options: GenerateOptions,
+  next: () => AsyncIterable<StreamChunk>,
+) => AsyncIterable<StreamChunk> {
   return (options, next) => {
     if (!isAgentLoopRequest(options)) return next();
     return (async function* () {

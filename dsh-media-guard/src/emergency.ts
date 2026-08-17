@@ -1,5 +1,5 @@
-import { freezeMessage } from "@deepseek-ai/dsh-llm";
 import type { ContentBlock, Message } from "@deepseek-ai/dsh-llm";
+import { freezeMessage } from "@deepseek-ai/dsh-llm";
 
 const EMERGENCY_NOTE =
   "[Image removed by dsh-media-guard emergency projection; the original attachment remains in the session log]";

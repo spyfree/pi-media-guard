@@ -1,5 +1,5 @@
 import type { ImageAttachmentRef } from "@deepseek-ai/dsh-attachment";
-import type { ContentBlock, ImageBlock, Message, ToolResultBlock } from "@deepseek-ai/dsh-llm";
+import type { ImageBlock, Message, ToolResultBlock } from "@deepseek-ai/dsh-llm";
 import type { MediaFootprint, MediaLedgerItem } from "./domain.js";
 import { base64BytesForBinary } from "./media-bytes.js";
 
@@ -97,7 +97,10 @@ function describeToolCalls(messages: Message[]): Map<string, string> {
       const call = block as { type?: unknown; id?: unknown; name?: unknown; arguments?: unknown };
       if (call.type !== "tool-call" || typeof call.id !== "string" || typeof call.name !== "string")
         continue;
-      calls.set(call.id, formatToolCall(call.name, typeof call.arguments === "string" ? call.arguments : ""));
+      calls.set(
+        call.id,
+        formatToolCall(call.name, typeof call.arguments === "string" ? call.arguments : ""),
+      );
     }
   }
   return calls;
